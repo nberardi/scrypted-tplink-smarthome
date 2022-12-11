@@ -1,0 +1,59 @@
+{
+  "name": "scrypted-tplink-smarthome",
+  "version": "0.0.1",
+  "description": "Scrypted plugin for TP-Link Kasa Smart Home",
+  "author": "nberardi",
+  "license": "MIT",
+  "scripts": {
+    "scrypted-setup-project": "scrypted-setup-project",
+    "prescrypted-setup-project": "scrypted-package-json",
+    "build": "scrypted-webpack",
+    "prepublishOnly": "NODE_ENV=production scrypted-webpack",
+    "prescrypted-vscode-launch": "scrypted-webpack",
+    "scrypted-vscode-launch": "scrypted-deploy-debug",
+    "scrypted-deploy-debug": "scrypted-deploy-debug",
+    "scrypted-debug": "scrypted-debug",
+    "scrypted-deploy": "scrypted-deploy",
+    "scrypted-readme": "scrypted-readme",
+    "scrypted-package-json": "scrypted-package-json",
+    "scrypted-webpack": "scrypted-webpack"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nberardi/scrypted-tplink-smarthome.git"
+  },
+  "keywords": [
+    "scrypted",
+    "plugin",
+    "tplink",
+    "kasa",
+    "switch",
+    "outlet",
+    "lightbulb",
+    "light",
+    "bulb"
+  ],
+  "bugs": {
+    "url": "https://github.com/nberardi/scrypted-tplink-smarthome/issues"
+  },
+  "homepage": "https://github.com/nberardi/scrypted-tplink-smarthome#readme",
+  "scrypted": {
+    "name": "TP-Link Kasa Plugin",
+    "type": "DeviceProvider",
+    "interfaces": [
+      "DeviceDiscovery",
+      "DeviceProvider",
+      "DeviceCreator",
+      "Settings"
+    ]
+  },
+  "dependencies": {
+    "@types/node": "^16.11.7",
+    "crypto-js": "^4.1.1",
+    "tplink-smarthome-api": "^4.2.0"
+  },
+  "devDependencies": {
+    "@scrypted/sdk": "^0.1.18",
+    "webpack-bundle-analyzer": "^4.5.0"
+  }
+}
