@@ -1,11 +1,12 @@
-import sdk, { DeviceCreator, ScryptedNativeId, DeviceCreatorSettings, SettingValue, ScryptedDeviceType, ScryptedInterface } from '@scrypted/sdk';
+import sdk, { DeviceCreator, ScryptedNativeId, DeviceCreatorSettings, SettingValue, ScryptedDeviceType, ScryptedInterface, Device } from '@scrypted/sdk';
 import { DeviceDiscovery, DeviceProvider, ScryptedDeviceBase, Setting, Settings } from '@scrypted/sdk';
 import { StorageSettings } from "@scrypted/sdk/storage-settings";
-import { Client as TplinkClient, Device as TplinkDevice } from 'tplink-smarthome-api';
+import { Bulb, Client as TplinkClient, Device as TplinkDevice, Plug } from 'tplink-smarthome-api';
+import { KasaBase, KasaPlug } from './KasaBase';
 
 const { deviceManager } = sdk;
 
-export class TpLinkKasaPlugin extends ScryptedDeviceBase implements DeviceDiscovery, DeviceProvider, DeviceCreator, Settings {
+export class TpLinkKasaPlugin extends ScryptedDeviceBase implements DeviceProvider, DeviceCreator, Settings {
     storageSettings = new StorageSettings(this, {
         transport: {
           title: "Transport",
@@ -40,6 +41,8 @@ export class TpLinkKasaPlugin extends ScryptedDeviceBase implements DeviceDiscov
     });
 
     client: TplinkClient;
+    tplinkDevices = new Map<string, TplinkDevice>();
+    devices = new Map<string, KasaBase>();
 
     constructor(nativeId?: string) {
         super(nativeId);
@@ -70,14 +73,22 @@ export class TpLinkKasaPlugin extends ScryptedDeviceBase implements DeviceDiscov
         this.client.on('error', self.console.error);
         this.client.on('discovery-invalid', self.console.error);
 
-        this.client.on('device-new', self.foundDevice);
-        this.client.on('device-online', self.foundDevice);
+        this.client.on('device-new', (device: TplinkDevice) => {
+            this.console.info(`New Device: [${device.alias}] ${device.deviceType} [${device.id}]`);
+
+            return self.foundDevice(self, device);
+        });
+        this.client.on('device-online', (device: TplinkDevice) => {
+            this.console.info(`Online: [${device.alias}] ${device.deviceType} [${device.id}]`);
+
+            return self.foundDevice(self, device);
+        });
         
         this.client.on('device-offline', async (device: TplinkDevice) => {
-            const deviceAccessory = await this.getDevice(device.id);
-            if (deviceAccessory !== undefined) {
-                self.console.debug(`Device Offline: ${`[${device.alias}]`} %s [%s]`, deviceAccessory.name, device.deviceType, device.id, device.host, device.port);
-            }
+            this.console.info(`Offline: [${device.alias}] ${device.deviceType} [${device.id}]`);
+
+            if (self.tplinkDevices.has(device.id))
+                self.tplinkDevices.delete(device.id);
         });
 
         this.client.startDiscovery({
@@ -88,23 +99,25 @@ export class TpLinkKasaPlugin extends ScryptedDeviceBase implements DeviceDiscov
         });
     }
 
-    async foundDevice(device: TplinkDevice) {
+    async foundDevice(plugin: TpLinkKasaPlugin, device: TplinkDevice) : Promise<string> {
+        // needs to be device.id instead of device.deviceId, incase it is a plug with more than one outlet
         const deviceId = device.id;
 
         if (deviceId === null || deviceId.length === 0) {
             this.console.error('Missing deviceId: %s', device.host);
-            return;
+            return deviceId;
         }
 
-        const currentDevices = deviceManager.getNativeIds();
-        if (currentDevices.includes(deviceId)) 
-            return;
+        if (plugin.tplinkDevices.has(deviceId)) 
+            return deviceId;
 
-        const d = {
-            providerNativeId: this.nativeId,
+        plugin.tplinkDevices.set(deviceId, device);
+
+        const d: Device = {
+            providerNativeId: plugin.nativeId,
             name: device.alias,
-            type: device.deviceType === 'plug' ? ScryptedDeviceType.Outlet : device.deviceType === 'bulb' ? ScryptedDeviceType.Light : ScryptedDeviceType.Unknown,
-            nativeId: device.deviceId,
+            type: device instanceof Plug ? ScryptedDeviceType.Outlet : device instanceof Bulb ? ScryptedDeviceType.Light : ScryptedDeviceType.Unknown,
+            nativeId: deviceId,
             interfaces: [
                 ScryptedInterface.OnOff, 
                 ScryptedInterface.Settings, 
@@ -114,24 +127,41 @@ export class TpLinkKasaPlugin extends ScryptedDeviceBase implements DeviceDiscov
                 model: device.model,
                 mac: device.mac,
                 manufacturer: "TP-Link Kasa",
-                serialNumber: device.deviceId,
+                serialNumber: deviceId,
                 firmware: device.softwareVersion,
                 version: device.hardwareVersion
             }
         };
 
-        if (device.deviceType === 'plug') {
-            d.interfaces.push(ScryptedInterface.PowerSensor);
+        if (device instanceof Plug) {
+            const p = device as Plug;
+
+            if (p.supportsDimmer) {
+                d.interfaces.push(ScryptedInterface.Brightness);
+            }
         }
         
-        if (device.deviceType === 'bulb') {
-            d.interfaces.push(ScryptedInterface.ColorSettingHsv);
-            d.interfaces.push(ScryptedInterface.ColorSettingRgb);
-            d.interfaces.push(ScryptedInterface.ColorSettingTemperature);
+        if (device instanceof Bulb) {
+            const b = device as Bulb;
+
+            if (b.supportsBrightness) {
+                d.interfaces.push(ScryptedInterface.Brightness);
+            }
+
+            if (b.supportsColor) {
+                d.interfaces.push(ScryptedInterface.ColorSettingHsv);
+                d.interfaces.push(ScryptedInterface.ColorSettingRgb);
+            }
+
+            if (b.supportsColorTemperature) {
+                d.interfaces.push(ScryptedInterface.ColorSettingTemperature);
+            }
         }
 
         await deviceManager.onDeviceDiscovered(d);
-        this.console.info(`Added: [${d.name}] ${d.type} [${d.nativeId}]`);
+        plugin.console.info(`Added: [${d.name}] ${d.type} [${d.nativeId}]`);
+
+        return d.nativeId;
     }
 
     async getCreateDeviceSettings(): Promise<Setting[]> {
@@ -154,16 +184,42 @@ export class TpLinkKasaPlugin extends ScryptedDeviceBase implements DeviceDiscov
         ];
     }
 
-    discoverDevices(duration: number): Promise<void> {
-        throw new Error('Method not implemented.');
-    }
+    async getDevice(nativeId: string) {
+        if (this.devices.has(nativeId))
+            return this.devices.get(nativeId);
 
-    getDevice(nativeId: ScryptedNativeId) {
-        throw new Error('Method not implemented.');
+        if (this.tplinkDevices.has(nativeId)) {
+            const d = this.tplinkDevices.get(nativeId);
+
+            if (d instanceof Bulb) {
+                var b = new KasaBase(nativeId);
+                this.devices.set(nativeId, b);
+                await b.connect(d);
+                return b;
+            }
+
+            if (d instanceof Plug) {
+                var p = new KasaPlug(nativeId);
+                this.devices.set(nativeId, p);
+                await p.connect(d);
+                return p;
+            }
+
+            this.console.error(`Cannot Find Device: [${nativeId}]`);
+            return undefined;
+        }
     }
 
     createDevice(settings: DeviceCreatorSettings): Promise<string> {
-        throw new Error('Method not implemented.');
+        const ipAddress = settings.ipAddress.toString();
+        const port = settings.port;
+
+        const d = this.client.getDevice({
+            host: ipAddress,
+            port: port
+        });
+
+        return this.foundDevice(this, d);
     }
 
     getSettings(): Promise<Setting[]> {

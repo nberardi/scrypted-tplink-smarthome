@@ -41,7 +41,6 @@
     "name": "TP-Link Kasa Plugin",
     "type": "DeviceProvider",
     "interfaces": [
-      "DeviceDiscovery",
       "DeviceProvider",
       "DeviceCreator",
       "Settings"
