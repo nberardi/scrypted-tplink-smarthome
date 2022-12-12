@@ -2,47 +2,73 @@ import sdk, { DeviceCreator, ScryptedNativeId, DeviceCreatorSettings, SettingVal
 import { DeviceDiscovery, DeviceProvider, ScryptedDeviceBase, Setting, Settings } from '@scrypted/sdk';
 import { StorageSettings } from "@scrypted/sdk/storage-settings";
 import { Bulb, Client as TplinkClient, Device as TplinkDevice, Plug } from 'tplink-smarthome-api';
-import { KasaBase, KasaPlug } from './KasaBase';
+import { KasaBase } from './KasaBase';
+import { KasaBulb } from './KasaBulb';
+import { KasaPlug } from "./KasaPlug";
 
 const { deviceManager } = sdk;
 
 export class TpLinkKasaPlugin extends ScryptedDeviceBase implements DeviceProvider, DeviceCreator, Settings {
     storageSettings = new StorageSettings(this, {
         transport: {
-          title: "Transport",
-          type: "string",
-          placeholder: "udp",
-          choices: ["tcp", "udp"],
-          description: "The transport protocol for devices.",
-          onPut: () => this.connect()
+            title: "Transport",
+            type: "string",
+            choices: ["tcp", "udp"],
+            value: "tcp",
+            description: "The transport protocol for devices.",
+            onPut: () => this.connect()
         },
         timeout: {
-          title: "Timeout",
-          type: "number",
-          placeholder: 10000,
-          description: "The timeout in miliseconds.",
-          onPut: () => this.connect()
+            title: "Timeout",
+            type: "number",
+            placeholder: 10000,
+            value: 10000,
+            description: "The timeout in miliseconds. The default is 10,000 ms or 10 s.",
+            onPut: () => this.connect()
+        },
+        useSharedSocket: {
+            title: "Shared Socket",
+            type: "boolean",
+            value: false,
+            description: "Attempt to reuse a shared socket if available if transport is set to \"udp\".",
+            onPut: () => this.connect()
+        },
+        sharedSocketTimeout: {
+            title: "Shared Socket Timeout",
+            type: "number",
+            placeholder: 20000,
+            value: 20000,
+            description: "The timeout in miliseconds to wait for another send before closing a shared socket. 0 = never automatically close socket. The default is 20,000 ms or 20 s.",
+            onPut: () => this.connect()
         },
         broadcast: {
-          title: "Broadcast",
-          type: "string",
-          placeholder: "255.255.255.255",
-          description: "UDP broadcast address.",
-          onPut: () => this.connect()
+            title: "Broadcast",
+            type: "string",
+            placeholder: "255.255.255.255",
+            description: "UDP broadcast address.",
+            onPut: () => this.connect()
+        },
+        apiLogToConsole: {
+            title: "Log",
+            type: "boolean",
+            value: false,
+            description: "Log the connection information to the console.",
+            onPut: () => this.connect()
         },
         apiLogLevel: {
-          title: "Log Level",
-          type: "string",
-          placeholder: "warn",
-          choices: ['trace', 'debug', 'info', 'warn', 'error', 'silent'],
-          description: "Change this if you need more information transmitted in the log..",
-          onPut: () => this.connect()
+            title: "Log Level",
+            type: "string",
+            placeholder: "warn",
+            choices: ['trace', 'debug', 'info', 'warn', 'error', 'silent'],
+            value: "warn",
+            description: "Change this if you need more information transmitted in the log..",
+            onPut: () => this.connect()
         }
     });
 
     client: TplinkClient;
     tplinkDevices = new Map<string, TplinkDevice>();
-    devices = new Map<string, KasaBase>();
+    devices = new Map<string, KasaBase<Bulb | Plug>>();
 
     constructor(nativeId?: string) {
         super(nativeId);
@@ -62,8 +88,8 @@ export class TpLinkKasaPlugin extends ScryptedDeviceBase implements DeviceProvid
         }
         
         this.client = new TplinkClient({
-            logger: this.console,
-            logLevel: this.storageSettings.values.apiLogLevel,
+            logger: this.storageSettings.values.apiLogToConsole ? this.console : undefined,
+            logLevel: this.storageSettings.values.apiLogToConsole ? this.storageSettings.values.apiLogLevel : undefined,
             defaultSendOptions: {
                 timeout: this.storageSettings.values.timeout,
                 transport: this.storageSettings.values.transport
@@ -81,11 +107,23 @@ export class TpLinkKasaPlugin extends ScryptedDeviceBase implements DeviceProvid
         this.client.on('device-online', (device: TplinkDevice) => {
             this.console.info(`Online: [${device.alias}] ${device.deviceType} [${device.id}]`);
 
+            if (self.devices.has(device.id)) {
+                const d = self.devices.get(device.id);
+                if (d)
+                    d.online = true;
+            }
+
             return self.foundDevice(self, device);
         });
         
         this.client.on('device-offline', async (device: TplinkDevice) => {
             this.console.info(`Offline: [${device.alias}] ${device.deviceType} [${device.id}]`);
+
+            if (self.devices.has(device.id)) {
+                const d = self.devices.get(device.id);
+                if (d)
+                    d.online = false;
+            }
 
             if (self.tplinkDevices.has(device.id))
                 self.tplinkDevices.delete(device.id);
@@ -139,6 +177,13 @@ export class TpLinkKasaPlugin extends ScryptedDeviceBase implements DeviceProvid
             if (p.supportsDimmer) {
                 d.interfaces.push(ScryptedInterface.Brightness);
             }
+
+            if (this.devices.has(deviceId)) {
+                var kb = this.devices.get(deviceId);
+                kb?.connect(p);
+            } else {
+                this.devices.set(deviceId, new KasaPlug(deviceId, p));
+            }
         }
         
         if (device instanceof Bulb) {
@@ -150,11 +195,17 @@ export class TpLinkKasaPlugin extends ScryptedDeviceBase implements DeviceProvid
 
             if (b.supportsColor) {
                 d.interfaces.push(ScryptedInterface.ColorSettingHsv);
-                d.interfaces.push(ScryptedInterface.ColorSettingRgb);
             }
 
             if (b.supportsColorTemperature) {
                 d.interfaces.push(ScryptedInterface.ColorSettingTemperature);
+            }
+
+            if (this.devices.has(deviceId)) {
+                var kb = this.devices.get(deviceId);
+                kb?.connect(b);
+            } else {
+                this.devices.set(deviceId, new KasaBulb(deviceId, b));
             }
         }
 
@@ -184,30 +235,12 @@ export class TpLinkKasaPlugin extends ScryptedDeviceBase implements DeviceProvid
         ];
     }
 
-    async getDevice(nativeId: string) {
+    getDevice(nativeId: string) {
         if (this.devices.has(nativeId))
             return this.devices.get(nativeId);
 
-        if (this.tplinkDevices.has(nativeId)) {
-            const d = this.tplinkDevices.get(nativeId);
-
-            if (d instanceof Bulb) {
-                var b = new KasaBase(nativeId);
-                this.devices.set(nativeId, b);
-                await b.connect(d);
-                return b;
-            }
-
-            if (d instanceof Plug) {
-                var p = new KasaPlug(nativeId);
-                this.devices.set(nativeId, p);
-                await p.connect(d);
-                return p;
-            }
-
-            this.console.error(`Cannot Find Device: [${nativeId}]`);
-            return undefined;
-        }
+        this.console.error(`Cannot Find Device: [${nativeId}]`);
+        return undefined;
     }
 
     createDevice(settings: DeviceCreatorSettings): Promise<string> {

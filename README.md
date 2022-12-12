@@ -1,1 +1,1 @@
-# scrypted-kasasmart
+# scrypted-tplink-smarthome
