@@ -211,10 +211,7 @@ export class TpLinkKasaPlugin extends ScryptedDeviceBase implements DeviceProvid
                 d.interfaces.push(ScryptedInterface.Brightness);
             }
 
-            if (this.devices.has(deviceId)) {
-                var k = this.devices.get(deviceId);
-                k?.connect(p);
-            } else {
+            if (this.devices.has(deviceId) === false) {
                 var kp = new KasaPlug(deviceId);
                 this.devices.set(deviceId, kp);
             }
@@ -233,12 +230,10 @@ export class TpLinkKasaPlugin extends ScryptedDeviceBase implements DeviceProvid
                 d.interfaces.push(ScryptedInterface.ColorSettingTemperature);
             }
 
-            if (this.devices.has(deviceId)) {
-                var k = this.devices.get(deviceId);
-                k?.connect(b);
-            } else {
+            if (this.devices.has(deviceId) === false) {
                 var kb = new KasaBulb(deviceId);
-                this.devices.set(deviceId, kb);            }
+                this.devices.set(deviceId, kb); 
+            } 
         }
 
         await deviceManager.onDeviceDiscovered(d);
