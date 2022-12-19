@@ -1,6 +1,6 @@
 {
   "name": "scrypted-tplink-smarthome",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Scrypted plugin for TP-Link Kasa Smart Home",
   "author": "nberardi",
   "license": "MIT",
