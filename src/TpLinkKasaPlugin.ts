@@ -8,6 +8,12 @@ import { KasaPlug } from "./KasaPlug";
 
 const { deviceManager } = sdk;
 
+var kasa_switch_descriptions = [ 
+    "Smart Wi-Fi Light Switch",
+    "Smart Wi-Fi 3-Way Light Switch",
+    "Wi-Fi Smart Dimmer",
+];
+
 export class TpLinkKasaPlugin extends ScryptedDeviceBase implements DeviceProvider, DeviceCreator, Settings {
     storageSettings = new StorageSettings(this, {
         transport: {
@@ -87,6 +93,11 @@ export class TpLinkKasaPlugin extends ScryptedDeviceBase implements DeviceProvid
                         let p = new KasaPlug(nativeId);
                         p.online = false;
                         this.devices.set(nativeId, p);
+                        break;
+                    case ScryptedDeviceType.Switch:
+                        let s = new KasaPlug(nativeId);
+                        s.online = false;
+                        this.devices.set(nativeId, s);
                         break;
                     case ScryptedDeviceType.Light: 
                         let b = new KasaBulb(nativeId);
@@ -173,7 +184,11 @@ export class TpLinkKasaPlugin extends ScryptedDeviceBase implements DeviceProvid
         const d: Device = {
             providerNativeId: plugin.nativeId,
             name: device.alias,
-            type: device instanceof Plug ? ScryptedDeviceType.Outlet : device instanceof Bulb ? ScryptedDeviceType.Light : ScryptedDeviceType.Unknown,
+            type: device instanceof Plug ? 
+                        (kasa_switch_descriptions.includes(device.description ?? "") 
+                            ? ScryptedDeviceType.Switch : ScryptedDeviceType.Outlet) 
+                    : device instanceof Bulb ?
+                         ScryptedDeviceType.Light : ScryptedDeviceType.Unknown,
             nativeId: deviceId,
             interfaces: [
                 ScryptedInterface.OnOff, 
