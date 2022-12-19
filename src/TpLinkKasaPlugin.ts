@@ -201,12 +201,9 @@ export class TpLinkKasaPlugin extends ScryptedDeviceBase implements DeviceProvid
                 k?.connect(p);
             } else {
                 var kp = new KasaPlug(deviceId);
-                kp.connect(p);
                 this.devices.set(deviceId, kp);
             }
-        }
-        
-        if (device instanceof Bulb) {
+        } else  if (device instanceof Bulb) {
             const b = device as Bulb;
 
             if (b.supportsBrightness) {
@@ -226,13 +223,22 @@ export class TpLinkKasaPlugin extends ScryptedDeviceBase implements DeviceProvid
                 k?.connect(b);
             } else {
                 var kb = new KasaBulb(deviceId);
-                kb.connect(b);
                 this.devices.set(deviceId, kb);            }
         }
 
         await deviceManager.onDeviceDiscovered(d);
         plugin.console.info(`Added: [${d.name}] ${d.type} [${d.nativeId}]`);
-
+        if (this.devices.has(deviceId)) {
+            var k = this.devices.get(deviceId);
+            if (device instanceof Plug) {
+                const p = device as Plug;
+                k?.connect(p);
+            } else if (device instanceof Bulb) {
+                const p = device as Bulb;
+                k?.connect(p);
+            }
+        }
+        
         return d.nativeId;
     }
 
