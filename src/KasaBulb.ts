@@ -1,15 +1,16 @@
 import { OnOff, Brightness, ColorSettingHsv, ColorSettingTemperature, ColorHsv } from "@scrypted/sdk";
-import { Bulb } from "tplink-smarthome-api";
+import { Bulb, LightState } from "tplink-smarthome-api";
 import { KasaBase } from "./KasaBase";
+import { BulbSysinfoLightState } from "tplink-smarthome-api/lib/bulb";
 
 
 export class KasaBulb extends KasaBase<Bulb> implements OnOff, Brightness, ColorSettingHsv, ColorSettingTemperature {
 
-    constructor(nativeId: string, device: Bulb) {
-        super(nativeId, device);
+    constructor(nativeId: string) {
+        super(nativeId);
+    }
 
-        const lightState = device.sysInfo.light_state;
-
+    refresh(lightState: LightState) {
         this.on = lightState.on_off === 1;
         this.brightness = lightState.brightness;
         this.colorTemperature = lightState.color_temp;
@@ -22,21 +23,45 @@ export class KasaBulb extends KasaBase<Bulb> implements OnOff, Brightness, Color
         this.hsv = hsv;
     }
 
-    async connect(device: Bulb) {
+    connect(device: Bulb) {
         super.connect(device);
 
-        const lightState = await device.lighting.getLightState();
+        const self = this;
 
-        this.on = lightState.on_off === 1;
-        this.brightness = lightState.brightness;
-        this.colorTemperature = lightState.color_temp;
+        const lightState = device.sysInfo.light_state;
+        this.refresh(lightState);
 
-        let hsv: ColorHsv = {
-            h: lightState.hue,
-            s: lightState.saturation,
-            v: 100
-        };
-        this.hsv = hsv;
+        this.device.on("lightstate-on", (ls: LightState) => {
+            self.console.info(`Light On: [${device.alias}] ${device.deviceType} [${device.id}]`);
+        });
+
+        this.device.on("lightstate-off", (ls: LightState) => {
+            self.console.info(`Light Off: [${device.alias}] ${device.deviceType} [${device.id}]`);
+        });
+
+        this.device.on("lightstate-change", (ls: LightState) => {
+            self.refresh(ls);
+        });
+
+        this.device.on("lightstate-update", (ls: LightState) => {
+            self.refresh(ls);
+        });
+
+        this.device.on("lightstate-sysinfo-on", (ls: BulbSysinfoLightState) => {
+            self.console.info(`Light On: [${device.alias}] ${device.deviceType} [${device.id}]`);
+        });
+
+        this.device.on("lightstate-sysinfo-off", (ls: BulbSysinfoLightState) => {
+            self.console.info(`Light Off: [${device.alias}] ${device.deviceType} [${device.id}]`);
+        });
+
+        this.device.on("lightstate-sysinfo-change", (ls: BulbSysinfoLightState) => {
+            self.refresh(ls);
+        });
+
+        this.device.on("lightstate-sysinfo-update", (ls: BulbSysinfoLightState) => {
+            self.refresh(ls);
+        });
     }
 
     async turnOff(): Promise<void> {

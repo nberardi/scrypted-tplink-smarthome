@@ -78,6 +78,25 @@ export class TpLinkKasaPlugin extends ScryptedDeviceBase implements DeviceProvid
     connect() {
         const self = this;
 
+        let ids = deviceManager.getNativeIds();
+        for (const nativeId of ids) {
+            if (!this.devices.has(nativeId)) {
+                let d = deviceManager.getDeviceState(nativeId);
+                switch(d.type) {
+                    case ScryptedDeviceType.Outlet:
+                        let p = new KasaPlug(nativeId);
+                        p.online = false;
+                        this.devices.set(nativeId, p);
+                        break;
+                    case ScryptedDeviceType.Light: 
+                        let b = new KasaBulb(nativeId);
+                        b.online = false;
+                        this.devices.set(nativeId, b);
+                        break;
+                }
+            }
+        }
+
         if (this.client !== undefined) {
             try {
                 this.console.info("Stopping discovery.");
@@ -100,12 +119,12 @@ export class TpLinkKasaPlugin extends ScryptedDeviceBase implements DeviceProvid
         this.client.on('discovery-invalid', self.console.error);
 
         this.client.on('device-new', (device: TplinkDevice) => {
-            this.console.info(`New Device: [${device.alias}] ${device.deviceType} [${device.id}]`);
+            self.console.info(`New Device: [${device.alias}] ${device.deviceType} [${device.id}]`);
 
             return self.foundDevice(self, device);
         });
         this.client.on('device-online', (device: TplinkDevice) => {
-            this.console.info(`Online: [${device.alias}] ${device.deviceType} [${device.id}]`);
+            self.console.info(`Online: [${device.alias}] ${device.deviceType} [${device.id}]`);
 
             if (self.devices.has(device.id)) {
                 const d = self.devices.get(device.id);
@@ -117,7 +136,7 @@ export class TpLinkKasaPlugin extends ScryptedDeviceBase implements DeviceProvid
         });
         
         this.client.on('device-offline', async (device: TplinkDevice) => {
-            this.console.info(`Offline: [${device.alias}] ${device.deviceType} [${device.id}]`);
+            self.console.info(`Offline: [${device.alias}] ${device.deviceType} [${device.id}]`);
 
             if (self.devices.has(device.id)) {
                 const d = self.devices.get(device.id);
@@ -159,8 +178,7 @@ export class TpLinkKasaPlugin extends ScryptedDeviceBase implements DeviceProvid
             interfaces: [
                 ScryptedInterface.OnOff, 
                 ScryptedInterface.Settings, 
-                ScryptedInterface.Online, 
-                ScryptedInterface.Refresh],
+                ScryptedInterface.Online],
             info: {
                 model: device.model,
                 mac: device.mac,
@@ -179,10 +197,12 @@ export class TpLinkKasaPlugin extends ScryptedDeviceBase implements DeviceProvid
             }
 
             if (this.devices.has(deviceId)) {
-                var kb = this.devices.get(deviceId);
-                kb?.connect(p);
+                var k = this.devices.get(deviceId);
+                k?.connect(p);
             } else {
-                this.devices.set(deviceId, new KasaPlug(deviceId, p));
+                var kp = new KasaPlug(deviceId);
+                kp.connect(p);
+                this.devices.set(deviceId, kp);
             }
         }
         
@@ -202,11 +222,12 @@ export class TpLinkKasaPlugin extends ScryptedDeviceBase implements DeviceProvid
             }
 
             if (this.devices.has(deviceId)) {
-                var kb = this.devices.get(deviceId);
-                kb?.connect(b);
+                var k = this.devices.get(deviceId);
+                k?.connect(b);
             } else {
-                this.devices.set(deviceId, new KasaBulb(deviceId, b));
-            }
+                var kb = new KasaBulb(deviceId);
+                kb.connect(b);
+                this.devices.set(deviceId, kb);            }
         }
 
         await deviceManager.onDeviceDiscovered(d);
