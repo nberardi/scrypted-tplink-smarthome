@@ -113,4 +113,9 @@ export class KasaBulb extends KasaBase<Bulb> implements OnOff, Brightness, Color
         if (success)
             this.colorTemperature = kelvin;
     }
+
+    setOffline() {
+        super.setOffline();
+        this.on = undefined;
+    }
 }

@@ -47,4 +47,8 @@ export class KasaBase<T extends TplinkDevice> extends ScryptedDeviceBase impleme
     putSetting(key: string, value: SettingValue): Promise<void> {
         return this.storageSettings.putSetting(key, value);
     }
+
+    setOffline() {
+        this.online = false;
+    }
 }

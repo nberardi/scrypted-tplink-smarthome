@@ -56,4 +56,9 @@ export class KasaPlug extends KasaBase<Plug> implements OnOff, PowerSensor, Brig
     async setBrightness(brightness: number): Promise<void> {
         this.device.dimmer.setBrightness(brightness);
     }
+
+    setOffline() {
+        super.setOffline();
+        this.on = undefined;
+    }
 }

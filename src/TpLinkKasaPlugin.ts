@@ -122,7 +122,9 @@ export class TpLinkKasaPlugin extends ScryptedDeviceBase implements DeviceProvid
             logLevel: this.storageSettings.values.apiLogToConsole ? this.storageSettings.values.apiLogLevel : undefined,
             defaultSendOptions: {
                 timeout: this.storageSettings.values.timeout,
-                transport: this.storageSettings.values.transport
+                transport: this.storageSettings.values.transport,
+                useSharedSocket: this.storageSettings.values.useSharedSocket,
+                sharedSocketTimeout: this.storageSettings.values.sharedSocketTimeout
             }
         });
         
@@ -152,7 +154,7 @@ export class TpLinkKasaPlugin extends ScryptedDeviceBase implements DeviceProvid
             if (self.devices.has(device.id)) {
                 const d = self.devices.get(device.id);
                 if (d)
-                    d.online = false;
+                    d.setOffline();
             }
 
             if (self.tplinkDevices.has(device.id))
