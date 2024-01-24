@@ -15,7 +15,7 @@ export class KasaBase<T extends TplinkDevice> extends ScryptedDeviceBase impleme
         port: {
             title: "Port",
             type: "number",
-            placeholder: 9999,
+            placeholder: "9999",
             value: 9999,
             readonly: true,
             description: "The port defaults to 9999, but can be overriden.",
@@ -34,7 +34,7 @@ export class KasaBase<T extends TplinkDevice> extends ScryptedDeviceBase impleme
         }
 
         this.device = device;
-        this.online = device.status === "online";
+        this.online = (device as any).status === "online";
 
         this.storageSettings.values.ipAddress = device.host;
         this.storageSettings.values.port = device.port;

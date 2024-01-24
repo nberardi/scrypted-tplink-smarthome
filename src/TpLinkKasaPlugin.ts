@@ -27,7 +27,7 @@ export class TpLinkKasaPlugin extends ScryptedDeviceBase implements DeviceProvid
         timeout: {
             title: "Timeout",
             type: "number",
-            placeholder: 10000,
+            placeholder: "10000",
             value: 10000,
             description: "The timeout in miliseconds. The default is 10,000 ms or 10 s.",
             onPut: () => this.connect()
@@ -42,7 +42,7 @@ export class TpLinkKasaPlugin extends ScryptedDeviceBase implements DeviceProvid
         sharedSocketTimeout: {
             title: "Shared Socket Timeout",
             type: "number",
-            placeholder: 20000,
+            placeholder: "20000",
             value: 20000,
             description: "The timeout in miliseconds to wait for another send before closing a shared socket. 0 = never automatically close socket. The default is 20,000 ms or 20 s.",
             onPut: () => this.connect()
@@ -79,6 +79,13 @@ export class TpLinkKasaPlugin extends ScryptedDeviceBase implements DeviceProvid
     constructor(nativeId?: string) {
         super(nativeId);
         this.connect();
+    }
+
+    releaseDevice(id: string, nativeId: string): Promise<void> {
+        if (this.devices.has(nativeId))
+            this.devices.delete(nativeId);
+
+        return Promise.resolve();
     }
 
     connect() {
@@ -251,7 +258,7 @@ export class TpLinkKasaPlugin extends ScryptedDeviceBase implements DeviceProvid
             }
         }
         
-        return d.nativeId;
+        return d.nativeId as string;
     }
 
     async getCreateDeviceSettings(): Promise<Setting[]> {
@@ -274,7 +281,7 @@ export class TpLinkKasaPlugin extends ScryptedDeviceBase implements DeviceProvid
         ];
     }
 
-    getDevice(nativeId: string) {
+    async getDevice(nativeId: string) : Promise<any> {
         if (this.devices.has(nativeId))
             return this.devices.get(nativeId);
 
@@ -282,11 +289,14 @@ export class TpLinkKasaPlugin extends ScryptedDeviceBase implements DeviceProvid
         return undefined;
     }
 
-    createDevice(settings: DeviceCreatorSettings): Promise<string> {
-        const ipAddress = settings.ipAddress.toString();
-        const port = settings.port;
+    async createDevice(settings: DeviceCreatorSettings): Promise<string> {
+        const ipAddress = settings.ipAddress?.toString();
+        const port = settings.port ?? 9999;
 
-        const d = this.client.getDevice({
+        if (ipAddress === undefined)
+            throw new Error('IP Address must be set.');
+
+        const d = await this.client.getDevice({
             host: ipAddress,
             port: port
         });

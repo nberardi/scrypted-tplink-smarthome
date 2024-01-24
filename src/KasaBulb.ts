@@ -18,7 +18,7 @@ export class KasaBulb extends KasaBase<Bulb> implements OnOff, Brightness, Color
         let hsv: ColorHsv = {
             h: lightState.hue,
             s: lightState.saturation,
-            v: 100
+            v: lightState.brightness
         };
         this.hsv = hsv;
     }
@@ -76,7 +76,7 @@ export class KasaBulb extends KasaBase<Bulb> implements OnOff, Brightness, Color
             this.brightness = brightness;
     }
     async setHsv(hue: number, saturation: number, value: number): Promise<void> {
-        let success = await this.device.lighting.setLightState({ hue: hue, saturation: saturation, color_temp: 0 });
+        let success = await this.device.lighting.setLightState({ hue: hue, saturation: saturation, brightness: value });
 
         if (success) {
             if (this.hsv) {
